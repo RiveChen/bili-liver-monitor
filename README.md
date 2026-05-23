@@ -14,6 +14,12 @@ All codes are vibed.
 - [ ] Bark iOS 告警通道
 - [ ] NapCat Bot 命令集成
 
+## Credits
+
+- [laplace-live/ws](https://github.com/laplace-live/ws)
+- [aio-dynamic-push](https://github.com/nfe-w/aio-dynamic-push)
+- [NaqCatQQ](https://github.com/NapNeko/NapCatQQ)
+
 ## License
 
 MIT.
