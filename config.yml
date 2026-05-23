@@ -1,0 +1,29 @@
+# ============================================
+# bili-liver-monitor 配置
+# ============================================
+
+monitor:
+  bilibili:
+    # 要监控的主播 UID 列表（注意：不是直播间 ID）
+    uid_list:
+    - 434334701 # 七海 
+    - 401315430 # 星瞳
+    - 2132180406 # 奶绿
+    notify_live_end: true # 是否推送下播通知
+    poll_interval: 30 # 轮询间隔（秒）
+
+pusher:
+  napcat:
+    # NapCatQQ HTTP API 地址
+    api_url: "http://127.0.0.1:3000"
+    # API Token（如果 NapCatQQ 配置了 access-token）
+    token: ""
+    # 私聊推送目标 QQ 号
+    user_id: 0 # ← 替换为实际 QQ 号
+    # 群聊推送目标群号（可多个）
+    group_ids: [] # ← 替换为实际群号
+    # 是否 @全体成员 ("all" 或 "")
+    at_qq: ""
+
+# 日志级别: DEBUG / INFO / WARNING / ERROR
+log_level: INFO

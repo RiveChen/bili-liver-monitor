@@ -1,23 +1,18 @@
-# Bilibili Liver Monitor
+# bili-liver-monitor
 
-监控 bilibili 主播开播状态并推送至 NapcatQQ。
+Bilibili 主播直播状态监控与推送工具。
 
-## Progress
+All codes are vibed.
 
-- [ ] 开播/下播提醒
-- [ ] NapcatQQ 状态推送
+## 功能
+
+- [x] 开播/下播提醒（HTTP 轮询）
+- [ ] WebSocket 实时监听（开播检测/礼物/SC）
 - [ ] 直播封面推图
-- [ ] 大额 SC 推送
-- [ ] 大额礼物推送
-- [ ] bilibili 动态推送
+- [ ] Bilibili 动态推送
 - [ ] 微博动态推送
-
-## Usage
-
-## Inspired by
-
-- [laplace-live/ws](https://github.com/laplace-live/ws)
-- [aio-dynamic-push](https://github.com/nfe-w/aio-dynamic-push)
+- [ ] Bark iOS 告警通道
+- [ ] NapCat Bot 命令集成
 
 ## License
 
