@@ -33,6 +33,20 @@ class Pusher:
         """Notify that a streamer ended streaming."""
         return True
 
+    async def push_dynamic(
+        self,
+        uname: str,
+        dynamic_id: str,
+        content: str,
+        pic_url: str | None = None,
+        dynamic_type: str = "",
+        dynamic_time: str = "",
+        dynamic_url: str = "",
+        avatar_url: str | None = None,
+    ) -> bool:
+        """Notify that a streamer posted a new dynamic."""
+        return True
+
     async def push_notification(
         self,
         title: str,

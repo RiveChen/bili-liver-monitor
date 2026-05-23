@@ -15,6 +15,7 @@ import signal
 import sys
 
 from .config import load_config
+from .monitor.bilibili_dynamic import BiliDynamicPollMonitor
 from .monitor.bilibili_live import BiliLivePollMonitor
 from .pusher.napcat import NapCatQQPusher
 
@@ -86,6 +87,7 @@ class Application:
         bili_cfg = self.config.monitor.bilibili
 
         for uid in bili_cfg.uid_list:
+            # Live status monitor
             monitor = BiliLivePollMonitor(
                 uid=uid,
                 on_live_start=self._on_live_start,
@@ -99,6 +101,23 @@ class Application:
                 bili_cfg.poll_interval,
                 "" if bili_cfg.notify_live_end else " (live_end disabled)",
             )
+
+            # Dynamic (动态) monitor
+            if bili_cfg.notify_dynamic:
+                dynamic_monitor = BiliDynamicPollMonitor(
+                    uid=uid,
+                    on_new_dynamic=self._on_new_dynamic,
+                    poll_interval=bili_cfg.dynamic_poll_interval,
+                    skip_forward=bili_cfg.skip_forward,
+                    cookie=bili_cfg.cookie,
+                )
+                self._monitors.append(dynamic_monitor)
+                log.info(
+                    "Dynamic monitor created: UID=%d, interval=%ds%s",
+                    uid,
+                    bili_cfg.dynamic_poll_interval,
+                    " (skip_forward)" if bili_cfg.skip_forward else "",
+                )
 
     # ── Event → Push routing ───────────────────────────────────
 
@@ -121,6 +140,34 @@ class Application:
                 await pusher.push_live_end(uname, room_id)
             except Exception:
                 log.exception("[%s] push_live_end failed", pusher.name)
+
+    async def _on_new_dynamic(
+        self,
+        uname: str,
+        dynamic_id: str,
+        content: str,
+        pic_url: str | None = None,
+        dynamic_type: str = "",
+        dynamic_time: str = "",
+        dynamic_url: str = "",
+        avatar_url: str | None = None,
+    ) -> None:
+        """Handle new dynamic event: push to all pushers."""
+        log.info("📝 %s %s (id=%s)", uname, dynamic_type or "发动态", dynamic_id)
+        for pusher in self._pushers:
+            try:
+                await pusher.push_dynamic(
+                    uname=uname,
+                    dynamic_id=dynamic_id,
+                    content=content,
+                    pic_url=pic_url,
+                    dynamic_type=dynamic_type,
+                    dynamic_time=dynamic_time,
+                    dynamic_url=dynamic_url,
+                    avatar_url=avatar_url,
+                )
+            except Exception:
+                log.exception("[%s] push_dynamic failed", pusher.name)
 
     async def _broadcast_notification(self, title: str, message: str = "") -> None:
         """Broadcast a notification to all pushers (startup/shutdown)."""

@@ -144,7 +144,49 @@ class NapCatQQPusher(Pusher):
             log.info("[%s] 下播推送成功 (私聊:%d 群聊:%d)", uname, len(self.user_ids), len(self.group_ids))
         return success
 
+    async def push_dynamic(
+        self,
+        uname: str,
+        dynamic_id: str,
+        content: str,
+        pic_url: str | None = None,
+        dynamic_type: str = "",
+        dynamic_time: str = "",
+        dynamic_url: str = "",
+        avatar_url: str | None = None,
+    ) -> bool:
+        """Push a new dynamic notification to private + optional group."""
+        # Build message with CQ code format
+        type_label = ""
+        if dynamic_type == "DYNAMIC_TYPE_AV":
+            type_label = "投稿了视频"
+        elif dynamic_type == "DYNAMIC_TYPE_ARTICLE":
+            type_label = "投稿了专栏"
+        elif dynamic_type == "DYNAMIC_TYPE_FORWARD":
+            type_label = "转发了动态"
+        else:
+            type_label = "发动态了"
+
+        msg = f"📝 {uname} {type_label}\n{content[:200]}"
+        if dynamic_time:
+            msg += f"\n🕐 {dynamic_time}"
+        if dynamic_url:
+            msg += f"\n🔗 {dynamic_url}"
+
+        results = await self._send_private_all(msg)
+        if self.group_ids:
+            group_msg = msg
+            if self.at_qq == "all":
+                group_msg = f"[CQ:at,qq=all]\n{msg}"
+            results.extend(await self._send_group_all(group_msg))
+
+        success = any(results) if results else False
+        if success:
+            log.info("[%s] 动态推送成功 (私聊:%d 群聊:%d)", uname, len(self.user_ids), len(self.group_ids))
+        return success
+
     async def push_notification(self, title: str, message: str = "") -> bool:
+
         """Push a generic notification to private only.
 
         Used for startup/shutdown/alert messages.

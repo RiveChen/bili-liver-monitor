@@ -12,6 +12,12 @@ monitor:
     notify_live_end: true # 是否推送下播通知
     poll_interval: 30 # 轮询间隔（秒）
 
+    # Bilibili 动态监控设置
+    notify_dynamic: true # 是否推送动态通知
+    dynamic_poll_interval: 60 # 动态轮询间隔（秒）
+    skip_forward: false # 是否跳过转发动态
+    cookie: "" # 如果启用动态监控，必须填入带 SESSDATA 的登录 cookie
+
 pusher:
   napcat:
     # NapCatQQ HTTP API 地址

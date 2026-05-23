@@ -7,9 +7,9 @@ All codes are vibed.
 ## 功能
 
 - [x] 开播/下播提醒（HTTP 轮询）
+- [x] Bilibili 动态推送（现仅支持文字动态）
 - [ ] WebSocket 实时监听（开播检测/礼物/SC）
 - [ ] 直播封面推图
-- [ ] Bilibili 动态推送
 - [ ] 微博动态推送
 - [ ] Bark iOS 告警通道
 - [ ] NapCat Bot 命令集成

@@ -14,11 +14,17 @@ log = logging.getLogger("config")
 
 
 class BilibiliMonitorConfig(BaseModel):
-    """Bilibili live monitor configuration."""
+    """Bilibili live & dynamic monitor configuration."""
 
     uid_list: list[int] = Field(default_factory=list)
     notify_live_end: bool = True
     poll_interval: int = 30
+
+    # Dynamic (动态) monitoring
+    notify_dynamic: bool = True
+    dynamic_poll_interval: int = 60
+    skip_forward: bool = True
+    cookie: str = ""
 
 
 class MonitorConfig(BaseModel):
