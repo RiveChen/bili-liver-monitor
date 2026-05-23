@@ -7,7 +7,7 @@ from pathlib import Path
 import yaml
 from pydantic import BaseModel, Field
 
-log = logging.getLogger("config")
+log = logging.getLogger(__name__)
 
 
 # ── Pydantic models ──────────────────────────────────────────────

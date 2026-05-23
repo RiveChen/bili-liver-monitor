@@ -20,7 +20,7 @@ import aiohttp
 
 from .base import Monitor
 
-log = logging.getLogger("bili live monitor")
+log = logging.getLogger(__name__)
 
 DEFAULT_POLL_INTERVAL = 30
 BUVID3_REFRESH_INTERVAL = 3600
@@ -84,6 +84,8 @@ class BiliLivePollMonitor(Monitor):
 
         # State tracking
         self._was_live: bool | None = None
+        self._poll_count: int = 0
+        self._heartbeat_interval: int = 10  # log heartbeat every N polls
 
         # Buvid3 management
         self._buvid3: str = ""
@@ -157,7 +159,7 @@ class BiliLivePollMonitor(Monitor):
 
                 if code == -352:
                     log.warning(
-                        "[UID %d] -352 risk control, refreshing buvid3", self.uid
+                        "[UID:%d] -352 risk control, refreshing buvid3", self.uid
                     )
                     self._buvid3 = ""
                     self._last_buvid3_refresh = 0
@@ -170,7 +172,7 @@ class BiliLivePollMonitor(Monitor):
                 return room_data
 
         except (aiohttp.ClientError, asyncio.TimeoutError, json.JSONDecodeError) as e:
-            log.debug("[UID %d] query error: %s", self.uid, e)
+            log.debug("[UID:%d] query error: %s", self.uid, e)
             return None
 
     async def run(self) -> None:
@@ -184,8 +186,9 @@ class BiliLivePollMonitor(Monitor):
             if room_data:
                 await self._process_room_data(room_data)
             else:
-                log.debug("[UID %d] polling returned no data", self.uid)
+                log.debug("[UID:%d] polling returned no data", self.uid)
 
+            self._poll_count += 1
             await self._sleep(self._poll_interval)
 
     async def _process_room_data(self, room_data: dict) -> None:
@@ -206,8 +209,8 @@ class BiliLivePollMonitor(Monitor):
             # First poll — just record state
             self._was_live = is_live
             log.info(
-                "[%s] initial live_status=%d (room_id=%d)",
-                uname,
+                "[%s(UID:%d)] initial live_status=%d (room_id=%d)",
+                uname, self.uid,
                 live_status,
                 room_id,
             )
@@ -216,15 +219,23 @@ class BiliLivePollMonitor(Monitor):
         if is_live and not self._was_live:
             # 0 -> 1: Live started
             self._was_live = True
-            log.info("[%s] 🔴 开播！room_id=%d", uname, room_id)
+            log.info("[%s(UID:%d)] 🔴 开播！room_id=%d", uname, self.uid, room_id)
             await self._on_live_start(uname, room_id, room_title, cover_url)
 
         elif not is_live and self._was_live:
             # 1 -> 0: Live ended
             self._was_live = False
-            log.info("[%s] ⏹️ 下播 room_id=%d", uname, room_id)
+            log.info("[%s(UID:%d)] ⏹️ 下播 room_id=%d", uname, self.uid, room_id)
             if self._on_live_end:
                 await self._on_live_end(uname, room_id)
+
+        elif self._poll_count % self._heartbeat_interval == 0:
+            # Periodic heartbeat — confirm the monitor is alive
+            status = "🟢 直播中" if is_live else "⚪ 未开播"
+            log.debug(
+                "[%s(UID:%d)] %s (room_id=%d, poll=%d)",
+                uname, self.uid, status, room_id, self._poll_count,
+            )
 
     async def stop(self) -> None:
         """Stop the polling loop and close connections."""

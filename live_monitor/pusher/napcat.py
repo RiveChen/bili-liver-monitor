@@ -13,7 +13,7 @@ import aiohttp
 
 from .base import Pusher
 
-log = logging.getLogger("napcat pusher")
+log = logging.getLogger(__name__)
 
 
 class NapCatQQPusher(Pusher):

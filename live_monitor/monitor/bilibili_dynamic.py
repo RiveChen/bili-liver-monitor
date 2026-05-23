@@ -15,13 +15,13 @@ import asyncio
 import logging
 import time
 from collections import deque
-from collections.abc import Awaitable, Callable
+from typing import Protocol
 
 import aiohttp
 
 from .base import Monitor
 
-log = logging.getLogger("bili dynamic monitor")
+log = logging.getLogger(__name__)
 
 DEFAULT_DYNAMIC_POLL_INTERVAL = 60
 
@@ -44,6 +44,22 @@ def _make_headers(uid: int = 0) -> dict[str, str]:
             "Chrome/120.0.0.0 Safari/537.36"
         ),
     }
+
+
+class NewDynamicCallback(Protocol):
+    """Protocol for the on_new_dynamic async callback."""
+
+    async def __call__(
+        self,
+        uname: str,
+        dynamic_id: str,
+        content: str,
+        pic_url: str | None = None,
+        dynamic_type: str = "",
+        dynamic_time: str = "",
+        dynamic_url: str = "",
+        avatar_url: str | None = None,
+    ) -> None: ...
 
 
 class BiliDynamicPollMonitor(Monitor):
@@ -72,10 +88,7 @@ class BiliDynamicPollMonitor(Monitor):
         self,
         uid: int,
         *,
-        on_new_dynamic: Callable[
-            [str, str, str, str | None, str, str, str, str | None],
-            Awaitable[None],
-        ],
+        on_new_dynamic: NewDynamicCallback,
         poll_interval: int = DEFAULT_DYNAMIC_POLL_INTERVAL,
         skip_forward: bool = True,
         cookie: str = "",
@@ -87,8 +100,6 @@ class BiliDynamicPollMonitor(Monitor):
         self._poll_interval = poll_interval
         self._skip_forward = skip_forward
         self._cookie = cookie
-
-        log.debug(cookie)
 
         # Defer session creation to avoid "no running event loop" error
         self._http: aiohttp.ClientSession | None = http_session
@@ -132,9 +143,7 @@ class BiliDynamicPollMonitor(Monitor):
                 timeout=aiohttp.ClientTimeout(total=10),
             ) as resp:
                 if resp.status != 200:
-                    log.warning(
-                        "[DYNAMIC UID %d] feed/space HTTP %d", self.uid, resp.status
-                    )
+                    log.warning("[UID:%d] feed/space HTTP %d", self.uid, resp.status)
                     return None
 
                 data = await resp.json()
@@ -143,7 +152,7 @@ class BiliDynamicPollMonitor(Monitor):
 
                 if code != 0:
                     log.warning(
-                        "[DYNAMIC UID %d] feed/space code=%d msg=%s",
+                        "[UID:%d] feed/space code=%d msg=%s",
                         self.uid,
                         code,
                         msg,
@@ -153,10 +162,10 @@ class BiliDynamicPollMonitor(Monitor):
                 result_data = data.get("data", {})
                 items = result_data.get("items", [])
                 if not items:
-                    log.info("[DYNAMIC UID %d] no items in response", self.uid)
+                    log.debug("[UID:%d] no items in response", self.uid)
                     return None
                 else:
-                    log.debug("[DYNAMIC UID %d] got %d items", self.uid, len(items))
+                    log.debug("[UID:%d] got %d items", self.uid, len(items))
 
                 # Filter out pinned items (置顶)
                 items = [
@@ -169,13 +178,13 @@ class BiliDynamicPollMonitor(Monitor):
                 ]
 
                 if not items:
-                    log.info("[DYNAMIC UID %d] all items are pinned", self.uid)
+                    log.debug("[UID:%d] all items are pinned", self.uid)
                     return None
 
                 return items[0]
 
         except (aiohttp.ClientError, asyncio.TimeoutError) as e:
-            log.warning("[DYNAMIC UID %d] query error: %s", self.uid, e)
+            log.warning("[UID:%d] query error: %s", self.uid, e)
             return None
 
     async def run(self) -> None:
@@ -183,7 +192,7 @@ class BiliDynamicPollMonitor(Monitor):
         self._running = True
 
         log.info(
-            "[DYNAMIC UID %d] starting poll monitor, interval=%ds",
+            "[UID:%d] starting poll monitor, interval=%ds",
             self.uid,
             self._poll_interval,
         )
@@ -195,18 +204,16 @@ class BiliDynamicPollMonitor(Monitor):
                 if item:
                     await self._process_item(item)
                 else:
-                    log.info(
-                        "[DYNAMIC UID %d] poll skipped — no item returned", self.uid
-                    )
+                    log.debug("[UID:%d] poll skipped — no item returned", self.uid)
             except Exception:
                 log.exception(
-                    "[DYNAMIC UID %d] unhandled error in poll loop, recovering...",
+                    "[UID:%d] unhandled error in poll loop, recovering...",
                     self.uid,
                 )
 
             await self._sleep(self._poll_interval)
 
-        log.info("[DYNAMIC UID %d] poll monitor stopped", self.uid)
+        log.info("[UID:%d] poll monitor stopped", self.uid)
 
     async def _process_item(self, item: dict) -> None:
         """Process a single dynamic item — detect if new and push if so."""
@@ -220,7 +227,7 @@ class BiliDynamicPollMonitor(Monitor):
             uname = author_module["name"]
             avatar_url = author_module.get("face")
         except (KeyError, TypeError):
-            log.error("[DYNAMIC UID %d] cannot parse author info", self.uid)
+            log.error("[UID:%d] cannot parse author info", self.uid)
             return
 
         self._uname = uname
@@ -229,15 +236,19 @@ class BiliDynamicPollMonitor(Monitor):
         if not self._dynamic_ids:
             self._dynamic_ids.append(dynamic_id)
             log.info(
-                "[DYNAMIC %s] dynamic initialized, latest id=%s", uname, dynamic_id
+                "[%s(UID:%d)] dynamic initialized, latest id=%s",
+                uname,
+                self.uid,
+                dynamic_id,
             )
             return
 
         # Check if this is a new dynamic
         if dynamic_id in self._dynamic_ids:
-            log.info(
-                "[DYNAMIC %s] poll ok — no new dynamic (latest id=%s)",
+            log.debug(
+                "[%s(UID:%d)] poll ok — no new dynamic (latest id=%s)",
                 uname,
+                self.uid,
                 dynamic_id,
             )
             return
@@ -259,8 +270,9 @@ class BiliDynamicPollMonitor(Monitor):
 
         if dynamic_type not in allow_types:
             log.info(
-                "[DYNAMIC %s] new dynamic type=%s skipped (not in push list)",
+                "[%s(UID:%d)] new dynamic type=%s skipped (not in push list)",
                 uname,
+                self.uid,
                 dynamic_type,
             )
             return
@@ -274,11 +286,9 @@ class BiliDynamicPollMonitor(Monitor):
 
         content = None
         pic_url = None
-        title_msg = "发动态了"
 
         if dynamic_type == "DYNAMIC_TYPE_FORWARD":
             content = module_dynamic.get("desc", {}).get("text", "")
-            title_msg = "转发了动态"
 
         elif dynamic_type == "DYNAMIC_TYPE_DRAW":
             major = module_dynamic.get("major", {})
@@ -305,7 +315,6 @@ class BiliDynamicPollMonitor(Monitor):
             archive = major.get("archive", {})
             content = archive.get("title", "")
             pic_url = archive.get("cover", "")
-            title_msg = "投稿了"
 
         elif dynamic_type == "DYNAMIC_TYPE_ARTICLE":
             major = module_dynamic.get("major", {})
@@ -314,20 +323,23 @@ class BiliDynamicPollMonitor(Monitor):
             pics = opus.get("pics", [])
             if pics:
                 pic_url = pics[0].get("url")
-            title_msg = "投稿了专栏"
 
         elif dynamic_type == "DYNAMIC_TYPE_COMMON_SQUARE":
             content = module_dynamic.get("desc", {}).get("text", "")
 
         if not content:
             log.info(
-                "[DYNAMIC %s] new dynamic but no parseable content, skip push", uname
+                "[%s(UID:%d)] new dynamic but no parseable content, skip push",
+                uname,
+                self.uid,
             )
             return
 
         dynamic_url = f"https://www.bilibili.com/opus/{dynamic_id}"
 
-        log.info("[DYNAMIC %s] new dynamic detected: %s...", uname, content[:50])
+        log.info(
+            "[%s(UID:%d)] new dynamic detected: %s...", uname, self.uid, content[:50]
+        )
 
         await self._on_new_dynamic(
             uname=uname,

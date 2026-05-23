@@ -19,7 +19,7 @@ from .monitor.bilibili_dynamic import BiliDynamicPollMonitor
 from .monitor.bilibili_live import BiliLivePollMonitor
 from .pusher.napcat import NapCatQQPusher
 
-log = logging.getLogger("live monitor")
+log = logging.getLogger(__name__)
 
 
 class Application:
@@ -63,11 +63,20 @@ class Application:
         level_str = (level or "INFO").upper()
         resolved_level = getattr(logging, level_str, logging.INFO)
 
-        logging.basicConfig(
-            level=resolved_level,
-            format="%(asctime)s [%(name)s] %(levelname)s: %(message)s",
-            datefmt="%Y-%m-%d %H:%M:%S",
-        )
+        root = logging.getLogger()
+        if not root.hasHandlers():
+            # First call: install handler + set level
+            logging.basicConfig(
+                level=resolved_level,
+                format="%(asctime)s [%(name)s] %(levelname)s: %(message)s",
+                datefmt="%Y-%m-%d %H:%M:%S",
+            )
+        else:
+            # Subsequent calls: only update level (basicConfig is a no-op once
+            # handlers exist, so we set level directly)
+            root.setLevel(resolved_level)
+            for handler in root.handlers:
+                handler.setLevel(resolved_level)
 
     def _init_pushers(self) -> None:
         """Create pusher instances from config."""
