@@ -14,7 +14,6 @@ Reference: aio-dynamic-push (query_task/query_bilibili.py)
 import asyncio
 import logging
 import time
-from collections import deque
 from typing import Protocol
 
 import aiohttp
@@ -106,8 +105,10 @@ class BiliDynamicPollMonitor(Monitor):
         self._http: aiohttp.ClientSession | None = http_session
         self._owns_session = http_session is None
 
-        # Deque of known dynamic IDs (max 100)
-        self._dynamic_ids: deque[str] = deque(maxlen=100)
+        # Maximum numeric dynamic ID seen so far.
+        # Using a monotonically-increasing numeric comparison avoids re-pushing
+        # old dynamics when the newest one is deleted.
+        self._max_seen_id: int = 0
 
         # Cached uname
         self._uname: str = ""
@@ -222,6 +223,13 @@ class BiliDynamicPollMonitor(Monitor):
         if not dynamic_id:
             return
 
+        # Parse numeric id for monotonic comparison
+        try:
+            numeric_id = int(dynamic_id)
+        except ValueError:
+            log.warning("[UID:%d] non-numeric dynamic_id=%s", self.uid, dynamic_id)
+            return
+
         # Get author info
         try:
             author_module = item["modules"]["module_author"]
@@ -234,8 +242,8 @@ class BiliDynamicPollMonitor(Monitor):
         self._uname = uname
 
         # Initialize if first poll
-        if not self._dynamic_ids:
-            self._dynamic_ids.append(dynamic_id)
+        if self._max_seen_id == 0:
+            self._max_seen_id = numeric_id
             log.info(
                 "[%s(UID:%d)] dynamic initialized, latest id=%s",
                 uname,
@@ -244,8 +252,9 @@ class BiliDynamicPollMonitor(Monitor):
             )
             return
 
-        # Check if this is a new dynamic
-        if dynamic_id in self._dynamic_ids:
+        # Only push if the dynamic is genuinely newer than anything seen before.
+        # This avoids re-pushing old dynamics when the newest one is deleted.
+        if numeric_id <= self._max_seen_id:
             log.debug(
                 "[%s(UID:%d)] poll ok — no new dynamic (latest id=%s)",
                 uname,
@@ -254,8 +263,8 @@ class BiliDynamicPollMonitor(Monitor):
             )
             return
 
-        # Record the new ID (appendleft keeps most recent at front)
-        self._dynamic_ids.appendleft(dynamic_id)
+        # Update the watermark
+        self._max_seen_id = numeric_id
 
         # Parse dynamic type
         dynamic_type = item.get("type", "")
