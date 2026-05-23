@@ -50,13 +50,15 @@ class NapCatQQPusher(Pusher):
             self._session = aiohttp.ClientSession()
         return self._session
 
-    async def _do_send(self, target_type: str, target_id: int, msg: str) -> bool:
+    async def _do_send(self, target_type: str, target_id: int, msg: str | list[dict]) -> bool:
         """Low-level HTTP call to NapCatQQ API.
 
         Args:
             target_type: "private" or "group".
             target_id: QQ user ID or group ID.
-            msg: Message text to send.
+            msg: Message text string or list of message segments (e.g.,
+                 [{"type": "text", "data": {"text": "..."}},
+                  {"type": "image", "data": {"file": "url"}}]).
 
         Returns:
             True if successfully sent.
@@ -96,11 +98,11 @@ class NapCatQQPusher(Pusher):
             log.warning("NapCatQQ: %s %d request failed: %s", target_type, target_id, e)
             return False
 
-    async def _send_private_all(self, msg: str) -> list[bool]:
+    async def _send_private_all(self, msg: str | list[dict]) -> list[bool]:
         """Send private message to all configured user IDs."""
         return [await self._do_send("private", uid, msg) for uid in self.user_ids]
 
-    async def _send_group_all(self, msg: str) -> list[bool]:
+    async def _send_group_all(self, msg: str | list[dict]) -> list[bool]:
         """Send group message to all configured group IDs."""
         return [await self._do_send("group", gid, msg) for gid in self.group_ids]
 
@@ -155,8 +157,12 @@ class NapCatQQPusher(Pusher):
         dynamic_url: str = "",
         avatar_url: str | None = None,
     ) -> bool:
-        """Push a new dynamic notification to private + optional group."""
-        # Build message with CQ code format
+        """Push a new dynamic notification to private + optional group.
+
+        When ``pic_url`` is provided, the message is sent as a list of
+        message segments (text + image) so NapCatQQ renders the picture
+        inline.  Otherwise a plain text string is used.
+        """
         type_label = ""
         if dynamic_type == "DYNAMIC_TYPE_AV":
             type_label = "投稿了视频"
@@ -167,17 +173,33 @@ class NapCatQQPusher(Pusher):
         else:
             type_label = "发动态了"
 
-        msg = f"📝 {uname} {type_label}\n{content[:200]}"
+        text = f"📝 {uname} {type_label}\n{content[:200]}"
         if dynamic_time:
-            msg += f"\n🕐 {dynamic_time}"
+            text += f"\n🕐 {dynamic_time}"
         if dynamic_url:
-            msg += f"\n🔗 {dynamic_url}"
+            text += f"\n🔗 {dynamic_url}"
+
+        # Build message segment list when a picture is available
+        if pic_url:
+            msg: list[dict] = [
+                {"type": "text", "data": {"text": text}},
+                {"type": "text", "data": {"text": "\n\n"}},
+                {"type": "image", "data": {"file": pic_url}},
+            ]
+        else:
+            msg = text
 
         results = await self._send_private_all(msg)
         if self.group_ids:
-            group_msg = msg
-            if self.at_qq == "all":
-                group_msg = f"[CQ:at,qq=all]\n{msg}"
+            if pic_url:
+                group_msg = msg
+                if self.at_qq == "all":
+                    group_msg = list(msg)  # copy
+                    group_msg.append({"type": "at", "data": {"qq": "all"}})
+            else:
+                group_msg = text
+                if self.at_qq == "all":
+                    group_msg = f"[CQ:at,qq=all]\n{text}"
             results.extend(await self._send_group_all(group_msg))
 
         success = any(results) if results else False

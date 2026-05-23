@@ -156,7 +156,7 @@ class BiliDynamicPollMonitor(Monitor):
                     log.info("[DYNAMIC UID %d] no items in response", self.uid)
                     return None
                 else:
-                    log.info("[DYNAMIC UID %d] got %d items", self.uid, len(items))
+                    log.debug("[DYNAMIC UID %d] got %d items", self.uid, len(items))
 
                 # Filter out pinned items (置顶)
                 items = [
