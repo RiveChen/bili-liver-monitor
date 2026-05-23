@@ -55,6 +55,7 @@ class NewDynamicCallback(Protocol):
         dynamic_id: str,
         content: str,
         pic_url: str | None = None,
+        pics_url: list[str] | None = None,
         dynamic_type: str = "",
         dynamic_time: str = "",
         dynamic_url: str = "",
@@ -286,6 +287,7 @@ class BiliDynamicPollMonitor(Monitor):
 
         content = None
         pic_url = None
+        pics_url: list[str] = []
 
         if dynamic_type == "DYNAMIC_TYPE_FORWARD":
             content = module_dynamic.get("desc", {}).get("text", "")
@@ -300,10 +302,11 @@ class BiliDynamicPollMonitor(Monitor):
                 title = opus.get("title", "")
                 if title:
                     content = f"[{title}] {content}" if content else title
-                # Get first picture
+                # Get all pictures
                 pics = opus.get("pics", [])
-                if pics:
-                    pic_url = pics[0].get("url")
+                pics_url = [p.get("url") for p in pics if p.get("url")]
+                if pics_url:
+                    pic_url = pics_url[0]
             else:
                 content = module_dynamic.get("desc", {}).get("text", "")
 
@@ -314,15 +317,19 @@ class BiliDynamicPollMonitor(Monitor):
             major = module_dynamic.get("major", {})
             archive = major.get("archive", {})
             content = archive.get("title", "")
-            pic_url = archive.get("cover", "")
+            cover = archive.get("cover", "")
+            if cover:
+                pic_url = cover
+                pics_url = [cover]
 
         elif dynamic_type == "DYNAMIC_TYPE_ARTICLE":
             major = module_dynamic.get("major", {})
             opus = major.get("opus", {})
             content = opus.get("title", "")
             pics = opus.get("pics", [])
-            if pics:
-                pic_url = pics[0].get("url")
+            pics_url = [p.get("url") for p in pics if p.get("url")]
+            if pics_url:
+                pic_url = pics_url[0]
 
         elif dynamic_type == "DYNAMIC_TYPE_COMMON_SQUARE":
             content = module_dynamic.get("desc", {}).get("text", "")
@@ -346,6 +353,7 @@ class BiliDynamicPollMonitor(Monitor):
             dynamic_id=dynamic_id,
             content=content,
             pic_url=pic_url,
+            pics_url=pics_url or None,
             dynamic_type=dynamic_type,
             dynamic_time=dynamic_time,
             dynamic_url=dynamic_url,

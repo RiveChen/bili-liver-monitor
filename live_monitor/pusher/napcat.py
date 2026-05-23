@@ -169,6 +169,7 @@ class NapCatQQPusher(Pusher):
         dynamic_id: str,
         content: str,
         pic_url: str | None = None,
+        pics_url: list[str] | None = None,
         dynamic_type: str = "",
         dynamic_time: str = "",
         dynamic_url: str = "",
@@ -176,9 +177,11 @@ class NapCatQQPusher(Pusher):
     ) -> bool:
         """Push a new dynamic notification to private + optional group.
 
-        When ``pic_url`` is provided, the message is sent as a list of
-        message segments (text + image) so NapCatQQ renders the picture
-        inline.  Otherwise a plain text string is used.
+        When ``pic_url`` or ``pics_url`` is provided, the message is sent as
+        a list of OneBot message segments (text + optional image(s)) so
+        NapCatQQ renders pictures inline.  Multiple images (``pics_url``)
+        are all appended after the text.  Otherwise a plain text string is
+        used.
         """
         type_label = ""
         if dynamic_type == "DYNAMIC_TYPE_AV":
@@ -196,22 +199,32 @@ class NapCatQQPusher(Pusher):
         if dynamic_url:
             text += f"\n🔗 {dynamic_url}"
 
-        # Build message segment list when a picture is available
-        if pic_url:
-            msg = [
+        # -- Build message segments ---------------------------------
+        # Collect all picture URLs (deduplicate to avoid double renders)
+        all_pics: list[str] = []
+        if pics_url:
+            all_pics.extend(pics_url)
+        elif pic_url:
+            all_pics.append(pic_url)
+
+        if all_pics:
+            # Build a list of OneBot message segments:
+            #   [text, "\n\n", image, image, ...]
+            msg: list[dict] | str = [
                 {"type": "text", "data": {"text": text}},
                 {"type": "text", "data": {"text": "\n\n"}},
-                {"type": "image", "data": {"file": pic_url}},
             ]
+            for url in all_pics:
+                msg.append({"type": "image", "data": {"file": url}})
         else:
             msg = text
 
+        # -- Send ---------------------------------------------------
         results = await self._send_private_all(msg)
         if self.group_ids:
-            if pic_url:
-                group_msg = msg
+            if isinstance(msg, list):
+                group_msg = list(msg)  # always copy list
                 if self.at_qq == "all":
-                    group_msg = list(msg)  # copy
                     group_msg.append({"type": "at", "data": {"qq": "all"}})
             else:
                 group_msg = text

@@ -39,6 +39,7 @@ class Pusher:
         dynamic_id: str,
         content: str,
         pic_url: str | None = None,
+        pics_url: list[str] | None = None,
         dynamic_type: str = "",
         dynamic_time: str = "",
         dynamic_url: str = "",
