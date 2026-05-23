@@ -43,6 +43,14 @@ class NapCatPusherConfig(BaseModel):
     at_qq: str = ""
 
 
+class ListenerConfig(BaseModel):
+    """NapCatQQ event listener configuration."""
+
+    bot_qq: int = Field(default=0, ge=0)
+    ws_url: str = ""
+    allowed_groups: list[int] = Field(default_factory=list)
+
+
 class PusherConfig(BaseModel):
     """Pusher section configuration."""
 
@@ -54,6 +62,7 @@ class AppConfig(BaseModel):
 
     monitor: MonitorConfig = Field(default_factory=MonitorConfig)
     pusher: PusherConfig = Field(default_factory=PusherConfig)
+    listener: ListenerConfig = Field(default_factory=ListenerConfig)
     log_level: str = "INFO"
 
 

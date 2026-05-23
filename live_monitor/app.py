@@ -14,10 +14,12 @@ import logging
 import signal
 import sys
 
+from .bot.listener import NapcatEventListener
 from .config import load_config
 from .monitor.bilibili_dynamic import BiliDynamicPollMonitor
 from .monitor.bilibili_live import BiliLivePollMonitor
 from .pusher.napcat import NapCatQQPusher
+
 
 log = logging.getLogger(__name__)
 
@@ -43,10 +45,14 @@ class Application:
         # Component lists
         self._pushers: list = []
         self._monitors: list = []
+        self._listener: NapcatEventListener | None = None
+
 
         # Initialize
         self._init_pushers()
         self._init_monitors()
+        self._init_listener()
+
 
         # Lifecycle
         self._stop_event = asyncio.Event()
@@ -128,7 +134,48 @@ class Application:
                     " (skip_forward)" if bili_cfg.skip_forward else "",
                 )
 
+    def _init_listener(self) -> None:
+        """Create the NapCatQQ event listener if bot_qq is configured."""
+        listener_cfg = self.config.listener
+        if not listener_cfg.bot_qq:
+            log.warning("未配置 listener.bot_qq，事件监听器未启动")
+            return
+
+        # Get the first napcat pusher for sending command replies
+        napcat_pushers = [p for p in self._pushers if isinstance(p, NapCatQQPusher)]
+        if not napcat_pushers:
+            log.warning("未配置 NapCat pusher，事件监听器无法发送回复")
+            return
+
+        pusher = napcat_pushers[0]
+
+        # Derive ws_url from api_url if not explicitly configured
+        ws_url = listener_cfg.ws_url
+        if not ws_url:
+            api_url = pusher.api_url
+            ws_url = api_url.replace("http://", "ws://").replace("https://", "wss://") + "/ws"
+
+        self._listener = NapcatEventListener(
+            ws_url=ws_url,
+            bot_qq=listener_cfg.bot_qq,
+            pusher=pusher,
+            allowed_groups=listener_cfg.allowed_groups or None,
+        )
+
+        groups_info = (
+            f" allowed_groups={listener_cfg.allowed_groups}"
+            if listener_cfg.allowed_groups
+            else " (no group restriction)"
+        )
+        log.info(
+            "NapCatQQ 事件监听器已创建 (bot_qq=%s, ws=%s%s)",
+            listener_cfg.bot_qq,
+            ws_url,
+            groups_info,
+        )
+
     # ── Event → Push routing ───────────────────────────────────
+
 
     async def _on_live_start(
         self, uname: str, room_id: int, room_title: str, cover_url: str
@@ -204,11 +251,18 @@ class Application:
 
         # Start all monitors
         tasks = [asyncio.create_task(m.run()) for m in self._monitors]
+
+        # Start the NapCatQQ event listener if configured
+        if self._listener:
+            tasks.append(asyncio.create_task(self._listener.run()))
+
         log.info(
-            "Started %d monitors, %d pushers",
+            "Started %d monitors, %d pushers%s",
             len(self._monitors),
             len(self._pushers),
+            ", listener enabled" if self._listener else "",
         )
+
 
         # Setup signal handling
         loop = asyncio.get_running_loop()
@@ -237,6 +291,11 @@ class Application:
         # Stop all monitors
         for m in self._monitors:
             await m.stop()
+
+        # Stop the listener
+        if self._listener:
+            await self._listener.stop()
+
 
         # Broadcast shutdown
         await self._broadcast_notification("🟠 bili-liver-monitor 已关闭")

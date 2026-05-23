@@ -31,5 +31,14 @@ pusher:
     # 是否 @全体成员 ("all" 或 "")
     at_qq: ""
 
+listener:
+  # NapCatQQ 事件监听配置（Forward WebSocket）
+  # Bot 自身的 QQ 号（用于检测群聊 @）
+  bot_qq: 0 # ← 替换为实际 Bot QQ 号
+  # WebSocket 连接地址
+  ws_url: "ws://127.0.0.1:3001"
+  # 群聊白名单：只在这些群响应命令（不配置则不限制）
+  allowed_groups: []
+
 # 日志级别: DEBUG / INFO / WARNING / ERROR
 log_level: INFO
