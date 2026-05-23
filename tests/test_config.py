@@ -118,7 +118,7 @@ class TestLoadConfig:
             load_config(str(p))
 
     def test_invalid_type_raises_validation_error(self, config_dir: Path) -> None:
-        """Config with wrong types should raise pydantic validation error."""
+        """Config with wrong types should raise TypeError from _from_dict."""
         p = config_dir / "config.yml"
         p.write_text(
             """
@@ -128,7 +128,7 @@ monitor:
 """,
             encoding="utf-8",
         )
-        with pytest.raises(Exception):
+        with pytest.raises(TypeError):
             load_config(str(p))
 
     def test_local_does_not_exist_uses_base_only(self, config_path: Path) -> None:
