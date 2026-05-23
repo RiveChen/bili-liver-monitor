@@ -47,12 +47,10 @@ class Application:
         self._monitors: list = []
         self._listener: NapcatEventListener | None = None
 
-
         # Initialize
         self._init_pushers()
         self._init_monitors()
         self._init_listener()
-
 
         # Lifecycle
         self._stop_event = asyncio.Event()
@@ -153,7 +151,10 @@ class Application:
         ws_url = listener_cfg.ws_url
         if not ws_url:
             api_url = pusher.api_url
-            ws_url = api_url.replace("http://", "ws://").replace("https://", "wss://") + "/ws"
+            ws_url = (
+                api_url.replace("http://", "ws://").replace("https://", "wss://")
+                + "/ws"
+            )
 
         self._listener = NapcatEventListener(
             ws_url=ws_url,
@@ -175,7 +176,6 @@ class Application:
         )
 
     # ── Event → Push routing ───────────────────────────────────
-
 
     async def _on_live_start(
         self, uname: str, room_id: int, room_title: str, cover_url: str
@@ -263,7 +263,6 @@ class Application:
             ", listener enabled" if self._listener else "",
         )
 
-
         # Setup signal handling
         loop = asyncio.get_running_loop()
         if sys.platform != "win32":
@@ -295,7 +294,6 @@ class Application:
         # Stop the listener
         if self._listener:
             await self._listener.stop()
-
 
         # Broadcast shutdown
         await self._broadcast_notification("🟠 bili-liver-monitor 已关闭")

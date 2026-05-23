@@ -210,7 +210,8 @@ class BiliLivePollMonitor(Monitor):
             self._was_live = is_live
             log.info(
                 "[%s(UID:%d)] initial live_status=%d (room_id=%d)",
-                uname, self.uid,
+                uname,
+                self.uid,
                 live_status,
                 room_id,
             )
@@ -234,7 +235,11 @@ class BiliLivePollMonitor(Monitor):
             status = "🟢 直播中" if is_live else "⚪ 未开播"
             log.debug(
                 "[%s(UID:%d)] %s (room_id=%d, poll=%d)",
-                uname, self.uid, status, room_id, self._poll_count,
+                uname,
+                self.uid,
+                status,
+                room_id,
+                self._poll_count,
             )
 
     async def stop(self) -> None:

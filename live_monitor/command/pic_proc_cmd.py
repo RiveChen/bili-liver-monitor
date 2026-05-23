@@ -18,7 +18,7 @@ from .base import Command, MessageContext
 if TYPE_CHECKING:
     pass
 
-log = logging.getLogger("live_monitor")
+log = logging.getLogger(__name__)
 
 # CQ code regex (shared)
 RE_CQ_IMAGE = re.compile(r"\[CQ:image[^\]]*?url=(?P<url>[^\],]+)")
@@ -219,7 +219,9 @@ async def _send_raw(ctx: MessageContext, endpoint: str, payload: dict) -> bool:
             if resp.status in (200, 204):
                 return True
             body = await resp.text()
-            log.warning("[CMD] _send_raw %s HTTP %d — %s", endpoint, resp.status, body[:200])
+            log.warning(
+                "[CMD] _send_raw %s HTTP %d — %s", endpoint, resp.status, body[:200]
+            )
             return False
     except (aiohttp.ClientError, asyncio.TimeoutError) as e:
         log.warning("[CMD] _send_raw %s failed: %s", endpoint, e)
@@ -259,7 +261,9 @@ def _process_images_frame_by_frame(
             )
 
             # 4. High-quality quantization (method=0), limit to 255 colors
-            quantized_rgb = clean_rgb.quantize(colors=255, method=Image.Quantize.MEDIANCUT, dither=Image.Dither.NONE)
+            quantized_rgb = clean_rgb.quantize(
+                colors=255, method=Image.Quantize.MEDIANCUT, dither=Image.Dither.NONE
+            )
 
             # 5. Extract palette, pad to 768 bytes (256 colors * 3 channels)
             palette = quantized_rgb.getpalette()
@@ -319,7 +323,9 @@ def _make_symmetric(img: Image.Image) -> Image.Image:
     return result
 
 
-async def _process_image(image_data: bytes, processor: Callable[[Image.Image], Image.Image]) -> bytes | None:
+async def _process_image(
+    image_data: bytes, processor: Callable[[Image.Image], Image.Image]
+) -> bytes | None:
     """Download, process (via *processor*), re-encode."""
     try:
         img = Image.open(BytesIO(image_data))

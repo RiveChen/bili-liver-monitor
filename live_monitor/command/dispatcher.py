@@ -8,7 +8,7 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from .base import Command, MessageContext
 
-log = logging.getLogger("live_monitor")
+log = logging.getLogger(__name__)
 
 
 class MessageDispatcher:
@@ -46,13 +46,20 @@ class MessageDispatcher:
                 if cmd.match(ctx):
                     log.info(
                         "[CMD] %s matched user=%s type=%s msg_id=%d",
-                        cmd.name, ctx.user_id, ctx.message_type, ctx.message_id,
+                        cmd.name,
+                        ctx.user_id,
+                        ctx.message_type,
+                        ctx.message_id,
                     )
                     await cmd.execute(ctx)
                     return True
             except Exception as e:
                 log.error(
                     "[CMD] %s error: %s user=%s msg_id=%d",
-                    cmd.name, e, ctx.user_id, ctx.message_id, exc_info=True,
+                    cmd.name,
+                    e,
+                    ctx.user_id,
+                    ctx.message_id,
+                    exc_info=True,
                 )
         return False

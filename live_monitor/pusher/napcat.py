@@ -8,6 +8,8 @@ Supports both private messages and group messages.
 
 import asyncio
 import logging
+from collections.abc import Sequence
+from typing import Any
 
 import aiohttp
 
@@ -50,7 +52,9 @@ class NapCatQQPusher(Pusher):
             self._session = aiohttp.ClientSession()
         return self._session
 
-    async def _do_send(self, target_type: str, target_id: int, msg: str | list[dict]) -> bool:
+    async def _do_send(
+        self, target_type: str, target_id: int, msg: str | Sequence[Any]
+    ) -> bool:
         """Low-level HTTP call to NapCatQQ API.
 
         Args:
@@ -90,7 +94,10 @@ class NapCatQQPusher(Pusher):
                 body = await resp.text()
                 log.warning(
                     "NapCatQQ: %s %d HTTP %d: %s",
-                    target_type, target_id, resp.status, body[:200],
+                    target_type,
+                    target_id,
+                    resp.status,
+                    body[:200],
                 )
                 return False
 
@@ -98,11 +105,11 @@ class NapCatQQPusher(Pusher):
             log.warning("NapCatQQ: %s %d request failed: %s", target_type, target_id, e)
             return False
 
-    async def _send_private_all(self, msg: str | list[dict]) -> list[bool]:
+    async def _send_private_all(self, msg: str | Sequence[Any]) -> list[bool]:
         """Send private message to all configured user IDs."""
         return [await self._do_send("private", uid, msg) for uid in self.user_ids]
 
-    async def _send_group_all(self, msg: str | list[dict]) -> list[bool]:
+    async def _send_group_all(self, msg: str | Sequence[Any]) -> list[bool]:
         """Send group message to all configured group IDs."""
         return [await self._do_send("group", gid, msg) for gid in self.group_ids]
 
@@ -130,7 +137,12 @@ class NapCatQQPusher(Pusher):
 
         success = any(results) if results else False
         if success:
-            log.info("[%s] 开播推送成功 (私聊:%d 群聊:%d)", uname, len(self.user_ids), len(self.group_ids))
+            log.info(
+                "[%s] 开播推送成功 (私聊:%d 群聊:%d)",
+                uname,
+                len(self.user_ids),
+                len(self.group_ids),
+            )
         return success
 
     async def push_live_end(self, uname: str, room_id: int) -> bool:
@@ -143,7 +155,12 @@ class NapCatQQPusher(Pusher):
 
         success = any(results) if results else False
         if success:
-            log.info("[%s] 下播推送成功 (私聊:%d 群聊:%d)", uname, len(self.user_ids), len(self.group_ids))
+            log.info(
+                "[%s] 下播推送成功 (私聊:%d 群聊:%d)",
+                uname,
+                len(self.user_ids),
+                len(self.group_ids),
+            )
         return success
 
     async def push_dynamic(
@@ -181,7 +198,7 @@ class NapCatQQPusher(Pusher):
 
         # Build message segment list when a picture is available
         if pic_url:
-            msg: list[dict] = [
+            msg = [
                 {"type": "text", "data": {"text": text}},
                 {"type": "text", "data": {"text": "\n\n"}},
                 {"type": "image", "data": {"file": pic_url}},
@@ -204,11 +221,15 @@ class NapCatQQPusher(Pusher):
 
         success = any(results) if results else False
         if success:
-            log.info("[%s] 动态推送成功 (私聊:%d 群聊:%d)", uname, len(self.user_ids), len(self.group_ids))
+            log.info(
+                "[%s] 动态推送成功 (私聊:%d 群聊:%d)",
+                uname,
+                len(self.user_ids),
+                len(self.group_ids),
+            )
         return success
 
     async def push_notification(self, title: str, message: str = "") -> bool:
-
         """Push a generic notification to private only.
 
         Used for startup/shutdown/alert messages.

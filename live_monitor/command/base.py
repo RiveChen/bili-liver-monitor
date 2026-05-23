@@ -2,15 +2,12 @@
 
 from __future__ import annotations
 
-import logging
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from ..pusher.napcat import NapCatQQPusher
-
-log = logging.getLogger("live_monitor")
 
 
 @dataclass
