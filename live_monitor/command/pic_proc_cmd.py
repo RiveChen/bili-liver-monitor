@@ -8,7 +8,7 @@ import html as html_mod
 import logging
 import re
 from io import BytesIO
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Callable
 
 import aiohttp
 from PIL import Image
@@ -233,13 +233,13 @@ async def _send_raw(ctx: MessageContext, endpoint: str, payload: dict) -> bool:
 
 def _process_images_frame_by_frame(
     img: Image.Image,
-    processor: callable,
+    processor: Callable[[Image.Image], Image.Image],
 ) -> bytes | Image.Image:
     """Apply *processor* to each frame of an image, preserving GIF animation."""
-    if getattr(img, "is_animated", False) and img.n_frames > 1:
+    if getattr(img, "is_animated", False) and getattr(img, "n_frames", 1) > 1:
         frames: list[Image.Image] = []
         durations: list[int] = []
-        max_frames = min(img.n_frames, 100)
+        max_frames = min(getattr(img, "n_frames", 1), 100)
 
         for frame in range(max_frames):
             img.seek(frame)
@@ -250,7 +250,7 @@ def _process_images_frame_by_frame(
 
             # 2. Extract alpha and binarize (0=transparent, 255=opaque)
             r, g, b, a = processed_rgba.split()
-            binary_alpha = a.point(lambda p: 255 if p > 127 else 0)
+            binary_alpha = a.point(lambda p: 255 if p > 127 else 0)  # type: ignore[operator]
 
             # 3. Composite on black bg → pure RGB (eliminate semi-transparent edges)
             black_bg = Image.new("RGB", processed_rgba.size, (0, 0, 0))
@@ -259,7 +259,7 @@ def _process_images_frame_by_frame(
             )
 
             # 4. High-quality quantization (method=0), limit to 255 colors
-            quantized_rgb = clean_rgb.quantize(colors=255, method=0, dither=0)
+            quantized_rgb = clean_rgb.quantize(colors=255, method=Image.Quantize.MEDIANCUT, dither=Image.Dither.NONE)
 
             # 5. Extract palette, pad to 768 bytes (256 colors * 3 channels)
             palette = quantized_rgb.getpalette()
@@ -297,12 +297,12 @@ def _process_images_frame_by_frame(
 
 def _mirror_image(img: Image.Image) -> Image.Image:
     """Flip entire image left-to-right."""
-    return img.transpose(Image.FLIP_LEFT_RIGHT)
+    return img.transpose(Image.Transpose.FLIP_LEFT_RIGHT)
 
 
 def _flip_upside_down(img: Image.Image) -> Image.Image:
     """Flip entire image upside down (top-to-bottom)."""
-    return img.transpose(Image.FLIP_TOP_BOTTOM)
+    return img.transpose(Image.Transpose.FLIP_TOP_BOTTOM)
 
 
 def _make_symmetric(img: Image.Image) -> Image.Image:
@@ -310,7 +310,7 @@ def _make_symmetric(img: Image.Image) -> Image.Image:
     w, h = img.size
     half = w // 2
     left = img.crop((0, 0, half, h))
-    mirrored = left.transpose(Image.FLIP_LEFT_RIGHT)
+    mirrored = left.transpose(Image.Transpose.FLIP_LEFT_RIGHT)
 
     result = Image.new("RGBA", (w, h))
     result.paste(left.convert("RGBA"), (0, 0))
@@ -319,7 +319,7 @@ def _make_symmetric(img: Image.Image) -> Image.Image:
     return result
 
 
-async def _process_image(image_data: bytes, processor: callable) -> bytes | None:
+async def _process_image(image_data: bytes, processor: Callable[[Image.Image], Image.Image]) -> bytes | None:
     """Download, process (via *processor*), re-encode."""
     try:
         img = Image.open(BytesIO(image_data))
@@ -329,6 +329,7 @@ async def _process_image(image_data: bytes, processor: callable) -> bytes | None
             # Already encoded (GIF animation)
             return result
         # Static image → PNG
+        assert isinstance(result, Image.Image)
         buf = BytesIO()
         result.save(buf, format="PNG")
         return buf.getvalue()
@@ -349,7 +350,7 @@ class BaseSymCommand(Command):
     """
 
     keyword: str = ""
-    processor: callable = staticmethod(lambda img: img)  # type: ignore[assignment]
+    processor: Callable[[Image.Image], Image.Image] = staticmethod(lambda img: img)  # type: ignore[assignment]
 
     def match(self, ctx: MessageContext) -> bool:
         """Return True if this message should trigger."""
