@@ -19,6 +19,7 @@ from .config import load_config
 from .monitor.bilibili_dynamic import BiliDynamicPollMonitor
 from .monitor.bilibili_live import BiliLivePollMonitor
 from .monitor.weibo_dynamic import WeiboDynamicPollMonitor
+from .pusher.bark import BarkPusher
 from .pusher.napcat import NapCatQQPusher
 
 
@@ -95,6 +96,18 @@ class Application:
                 at_qq=napcat_cfg.at_qq,
             )
         )
+
+        # Bark alert channel (optional, for operational alerts only)
+        bark_cfg = self.config.pusher.bark
+        if bark_cfg.device_key:
+            self._bark = BarkPusher(
+                device_key=bark_cfg.device_key,
+                server_url=bark_cfg.server_url,
+            )
+            log.info("Bark alert pusher created (server=%s)", bark_cfg.server_url)
+        else:
+            self._bark = None
+            log.debug("Bark not configured — device_key is empty")
 
     def _init_monitors(self) -> None:
         """Create monitor instances and bind event callbacks."""
@@ -177,11 +190,32 @@ class Application:
                 + "/ws"
             )
 
+        # Wire up Bark callbacks — only if Bark is configured
+        on_connected = None
+        on_disconnected = None
+        on_reconnect_stalled = None
+        on_qq_online = None
+        on_qq_offline = None
+        if self._bark:
+            on_connected = self._on_napcat_ws_connected
+            # on_disconnected intentionally NOT bound to Bark —
+            # we use on_reconnect_stalled instead to avoid spam from
+            # brief disconnects that auto-recover within a few seconds.
+            on_reconnect_stalled = self._on_napcat_reconnect_stalled
+            on_qq_online = self._on_qq_online
+            on_qq_offline = self._on_qq_offline
+
         self._listener = NapcatEventListener(
             ws_url=ws_url,
             bot_qq=listener_cfg.bot_qq,
             pusher=pusher,
             allowed_groups=listener_cfg.allowed_groups or None,
+            on_ws_connected=on_connected,
+            on_ws_disconnected=on_disconnected,
+            on_reconnect_stalled=on_reconnect_stalled,
+            reconnect_stall_timeout=30.0,
+            on_qq_online=on_qq_online,
+            on_qq_offline=on_qq_offline,
         )
 
         groups_info = (
@@ -195,6 +229,74 @@ class Application:
             ws_url,
             groups_info,
         )
+
+    # ── NapCatQQ WS state alerting via Bark ────────────────────
+
+    async def _on_napcat_ws_connected(self) -> None:
+        """Called when NapCatQQ WebSocket connects/reconnects."""
+        if not self._bark:
+            return
+        try:
+            await self._bark.push_alert(
+                "✅ NapCat 已恢复",
+                f"WebSocket 连接已重新建立",
+            )
+        except Exception:
+            log.exception("Bark connected alert failed")
+
+    async def _on_napcat_ws_disconnected(self) -> None:
+        """Called when NapCatQQ WebSocket drops after having been connected."""
+        if not self._bark:
+            return
+        try:
+            await self._bark.push_alert(
+                "⚠️ NapCat 掉线",
+                f"WebSocket 连接已断开，正在尝试重连...",
+            )
+        except Exception:
+            log.exception("Bark disconnected alert failed")
+
+    async def _on_napcat_reconnect_stalled(self) -> None:
+        """Called when NapCat WS reconnect keeps failing past the threshold.
+
+        This is used instead of on_ws_disconnected to avoid Bark spam
+        from brief disconnects (e.g., NapCat restart) that auto-recover.
+        """
+        if not self._bark:
+            return
+        try:
+            await self._bark.push_alert(
+                "⚠️ NapCat 持续断线",
+                "WebSocket 重连持续失败，请检查 NapCatQQ 是否正常运行",
+            )
+        except Exception:
+            log.exception("Bark reconnect stalled alert failed")
+
+    # ── NapCatQQ QQ online status alerting via Bark ────────────
+
+    async def _on_qq_online(self) -> None:
+        """Called when NapCatQQ QQ account transitions offline → online."""
+        if not self._bark:
+            return
+        try:
+            await self._bark.push_alert(
+                "✅ QQ 已重新登录",
+                "NapCat QQ 账户已恢复在线",
+            )
+        except Exception:
+            log.exception("Bark QQ online alert failed")
+
+    async def _on_qq_offline(self) -> None:
+        """Called when NapCatQQ QQ account transitions online → offline."""
+        if not self._bark:
+            return
+        try:
+            await self._bark.push_alert(
+                "⚠️ QQ 已离线",
+                "NapCat QQ 账户已断开，请检查登录状态",
+            )
+        except Exception:
+            log.exception("Bark QQ offline alert failed")
 
     # ── Event → Push routing ───────────────────────────────────
 
@@ -324,5 +426,9 @@ class Application:
         # Close pushers
         for p in self._pushers:
             await p.close()
+
+        # Close Bark alert channel
+        if self._bark:
+            await self._bark.close()
 
         log.info("Shutdown complete.")

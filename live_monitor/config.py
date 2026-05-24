@@ -75,10 +75,23 @@ class ListenerConfig:
 
 
 @dataclass
+class BarkPusherConfig:
+    """Bark push alert configuration.
+
+    Bark is an iOS notification app used here only for operational alerts
+    (e.g., NapCatQQ WebSocket disconnection).
+    """
+
+    device_key: str = ""
+    server_url: str = "https://api.day.app"
+
+
+@dataclass
 class PusherConfig:
     """Pusher section configuration."""
 
     napcat: NapCatPusherConfig = field(default_factory=NapCatPusherConfig)
+    bark: BarkPusherConfig = field(default_factory=BarkPusherConfig)
 
 
 @dataclass

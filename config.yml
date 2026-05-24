@@ -39,6 +39,13 @@ pusher:
     # 是否 @全体成员 ("all" 或 "")
     at_qq: ""
 
+  bark:
+    # Bark iOS 推送（运营告警专用，如 NapCat 断线通知）
+    # 不配置 device_key 则不启用
+    device_key: ""
+    # Bark 服务器地址（使用自建服务器时修改）
+    server_url: "https://api.day.app"
+
 listener:
   # NapCatQQ 事件监听配置（Forward WebSocket）
   # Bot 自身的 QQ 号（用于检测群聊 @）

@@ -11,8 +11,8 @@ All codes are vibed.
 - [x] 微博动态推送
 - [x] NapCat Bot 命令
 - [x] 直播封面推图
+- [x] Bark iOS 告警通道
 - [ ] WebSocket 实时监听（开播检测/礼物/SC）
-- [ ] Bark iOS 告警通道
 
 ## Credits
 
