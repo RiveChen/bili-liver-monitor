@@ -214,6 +214,7 @@ class Application:
             on_ws_disconnected=on_disconnected,
             on_reconnect_stalled=on_reconnect_stalled,
             reconnect_stall_timeout=30.0,
+            reconnect_stable_delay=30.0,
             on_qq_online=on_qq_online,
             on_qq_offline=on_qq_offline,
         )

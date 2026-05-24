@@ -84,6 +84,10 @@ class NapcatEventListener:
         reconnect_stall_timeout: Seconds after which a reconnect attempt
             is considered "stalled" (default 30).  Only meaningful when
             *on_reconnect_stalled* is provided.
+        reconnect_stable_delay: Seconds to wait after a successful
+            *re*-connection before invoking on_ws_connected.  This
+            avoids "✅ NapCat 已恢复" spam during brief hiccups
+            that resolve within seconds (default 30).
         on_qq_online: Optional async callback invoked when the QQ account
             transitions from offline → online (detected via heartbeat).
         on_qq_offline: Optional async callback invoked when the QQ account
@@ -102,6 +106,7 @@ class NapcatEventListener:
         on_ws_disconnected: Callable[[], Awaitable[None]] | None = None,
         on_reconnect_stalled: Callable[[], Awaitable[None]] | None = None,
         reconnect_stall_timeout: float = 30.0,
+        reconnect_stable_delay: float = 30.0,
         on_qq_online: Callable[[], Awaitable[None]] | None = None,
         on_qq_offline: Callable[[], Awaitable[None]] | None = None,
     ) -> None:
@@ -117,6 +122,7 @@ class NapcatEventListener:
         self._on_ws_disconnected = on_ws_disconnected
         self._on_reconnect_stalled = on_reconnect_stalled
         self._reconnect_stall_timeout = reconnect_stall_timeout
+        self._reconnect_stable_delay = reconnect_stable_delay
         self._on_qq_online = on_qq_online
         self._on_qq_offline = on_qq_offline
 
@@ -139,6 +145,10 @@ class NapcatEventListener:
         # Whether we have already fired on_reconnect_stalled for the
         # current disconnect episode.  Reset on successful reconnect.
         self._stall_notified: bool = False
+        # A pending asyncio.Task that will fire on_ws_connected after the
+        # stable-delay window.  Set when a reconnection occurs; cancelled
+        # if the connection drops again before the window expires.
+        self._stable_notify_task: asyncio.Task | None = None
 
         # ── Build command dispatcher ──
         self._dispatcher = MessageDispatcher()
@@ -252,6 +262,41 @@ class NapcatEventListener:
         separator = "&" if "?" in self._ws_url else "?"
         return f"{self._ws_url}{separator}access_token={token}"
 
+    def _schedule_stable_notify(self) -> None:
+        """Start a timer that fires *on_ws_connected* after the stability window.
+
+        Only fires when a "stalled" (prolonged disconnect) was previously
+        notified — brief hiccups that recover quickly are silently ignored.
+        """
+
+        # Only notify "已恢复" if we had previously notified "持续断线".
+        if not self._stall_notified:
+            return
+
+        # Cancel any previous pending notification
+        if self._stable_notify_task is not None:
+            self._stable_notify_task.cancel()
+            self._stable_notify_task = None
+
+        async def _delayed_notify() -> None:
+            try:
+                await asyncio.sleep(self._reconnect_stable_delay)
+                # Window expired — connection is still alive → notify
+                if self._on_ws_connected:
+                    try:
+                        await self._on_ws_connected()
+                    except Exception:
+                        log.exception("[WS] on_ws_connected callback failed")
+            except asyncio.CancelledError:
+                # Connection dropped before the window — silently discard
+                pass
+
+        self._stable_notify_task = asyncio.create_task(_delayed_notify())
+        log.info(
+            "[WS] Reconnected, will notify in %.0fs if stable",
+            self._reconnect_stable_delay,
+        )
+
     async def run(self) -> None:
         """Connect to NapCatQQ WebSocket and listen for events.
 
@@ -280,13 +325,10 @@ class NapcatEventListener:
                     self._disconnect_time = None
                     self._stall_notified = False
 
-                    # Notify on *re*-connection only — skip the very first
-                    # connect to avoid a spurious "✅ NapCat 已恢复" at startup.
+                    # On *re*-connection, schedule a deferred notification
+                    # so brief hiccups don't trigger Bark.
                     if not self._first_connect and self._on_ws_connected:
-                        try:
-                            await self._on_ws_connected()
-                        except Exception:
-                            log.exception("[WS] on_ws_connected callback failed")
+                        self._schedule_stable_notify()
                     self._first_connect = False
 
                     async for msg in ws:
@@ -313,7 +355,13 @@ class NapcatEventListener:
                             break
 
                     # ── Connection dropped ──────────────────
-                    # WS loop exited while we were connected → record time.
+                    # Cancel any pending stable-notify timer —
+                    # the connection didn't survive the window.
+                    if self._stable_notify_task is not None:
+                        self._stable_notify_task.cancel()
+                        self._stable_notify_task = None
+
+                    # Record time for reconnect stall detection.
                     self._disconnect_time = time.monotonic()
                     log.warning("[WS] Connection lost, starting reconnects...")
 
@@ -367,6 +415,10 @@ class NapcatEventListener:
     async def stop(self) -> None:
         """Stop the listener."""
         self._running = False
+        # Cancel any pending stable-notify timer
+        if self._stable_notify_task is not None:
+            self._stable_notify_task.cancel()
+            self._stable_notify_task = None
         if self._session:
             await self._session.close()
             self._session = None
