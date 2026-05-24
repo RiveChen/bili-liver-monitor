@@ -6,7 +6,7 @@ monitor:
   bilibili:
     # 要监控的主播 UID 列表（注意：不是直播间 ID）
     uid_list:
-    - 434334701 # 七海 
+    - 434334701 # 七海
     - 401315430 # 星瞳
     - 2132180406 # 奶绿
     notify_live_end: true # 是否推送下播通知
@@ -17,6 +17,14 @@ monitor:
     dynamic_poll_interval: 60 # 动态轮询间隔（秒）
     skip_forward: false # 是否跳过转发动态
     cookie: "" # 如果启用动态监控，必须填入带 SESSDATA 的登录 cookie
+
+  # 微博动态监控（可选）
+  weibo:
+    enable: false # 是否启用微博动态监控
+    uid_list: [] # 微博 UID 列表，参考 https://weibo.com/u/7198559139
+    poll_interval: 60 # 轮询间隔（秒）
+    cookie: "" # ① 查看"仅粉丝可见"微博 ② 启用 weibo.com/ajax 降级 API（绕过 WAF 封锁）
+    proxy: "" # HTTP 代理地址，如 "http://127.0.0.1:7890"，微博 WAF 可能屏蔽直连
 
 pusher:
   napcat:

@@ -18,6 +18,7 @@ from .bot.listener import NapcatEventListener
 from .config import load_config
 from .monitor.bilibili_dynamic import BiliDynamicPollMonitor
 from .monitor.bilibili_live import BiliLivePollMonitor
+from .monitor.weibo_dynamic import WeiboDynamicPollMonitor
 from .pusher.napcat import NapCatQQPusher
 
 
@@ -97,6 +98,7 @@ class Application:
 
     def _init_monitors(self) -> None:
         """Create monitor instances and bind event callbacks."""
+        # ── Bilibili monitors ──────────────────────────────────
         bili_cfg = self.config.monitor.bilibili
 
         for uid in bili_cfg.uid_list:
@@ -130,6 +132,25 @@ class Application:
                     uid,
                     bili_cfg.dynamic_poll_interval,
                     " (skip_forward)" if bili_cfg.skip_forward else "",
+                )
+
+        # ── Weibo monitors ─────────────────────────────────────
+        weibo_cfg = self.config.monitor.weibo
+        if weibo_cfg.enable:
+            for uid in weibo_cfg.uid_list:
+                weibo_monitor = WeiboDynamicPollMonitor(
+                    uid=uid,
+                    on_new_dynamic=self._on_new_dynamic,
+                    poll_interval=weibo_cfg.poll_interval,
+                    cookie=weibo_cfg.cookie,
+                    proxy=weibo_cfg.proxy,
+                )
+                self._monitors.append(weibo_monitor)
+                log.info(
+                    "Weibo monitor created: UID=%d, interval=%ds%s",
+                    uid,
+                    weibo_cfg.poll_interval,
+                    " (cookie configured)" if weibo_cfg.cookie else "",
                 )
 
     def _init_listener(self) -> None:

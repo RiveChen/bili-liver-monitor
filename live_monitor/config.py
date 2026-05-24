@@ -34,10 +34,24 @@ class BilibiliMonitorConfig:
 
 
 @dataclass
+class WeiboMonitorConfig:
+    """Weibo dynamic monitor configuration."""
+
+    uid_list: list[int] = field(default_factory=list)
+    enable: bool = True
+    poll_interval: int = 60
+    cookie: str = ""
+    # HTTP proxy URL (e.g. "http://127.0.0.1:7890").
+    # Weibo WAF may block direct API access; a proxy can help.
+    proxy: str = ""
+
+
+@dataclass
 class MonitorConfig:
     """Monitor section configuration."""
 
     bilibili: BilibiliMonitorConfig = field(default_factory=BilibiliMonitorConfig)
+    weibo: WeiboMonitorConfig = field(default_factory=WeiboMonitorConfig)
 
 
 @dataclass
