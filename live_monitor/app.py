@@ -239,7 +239,7 @@ class Application:
         try:
             await self._bark.push_alert(
                 "✅ NapCat 已恢复",
-                f"WebSocket 连接已重新建立",
+                "WebSocket 连接已重新建立",
             )
         except Exception:
             log.exception("Bark connected alert failed")
@@ -251,7 +251,7 @@ class Application:
         try:
             await self._bark.push_alert(
                 "⚠️ NapCat 掉线",
-                f"WebSocket 连接已断开，正在尝试重连...",
+                "WebSocket 连接已断开，正在尝试重连...",
             )
         except Exception:
             log.exception("Bark disconnected alert failed")

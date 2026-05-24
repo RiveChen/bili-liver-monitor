@@ -373,7 +373,7 @@ class WeiboDynamicPollMonitor(Monitor):
 
         # 2) Try ajax fallback (wrap mblog dicts in card-like containers)
         if self._cookie:
-            log.info("[Weibo UID:%d] mobile API failed, trying ajax fallback...", self.uid)
+            log.debug("[Weibo UID:%d] mobile API failed, trying ajax fallback...", self.uid)
             posts = await self._fetch_ajax_posts()
             if posts is not None:
                 # Wrap each mblog dict in a card-like shape so _process_cards works
