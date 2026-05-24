@@ -279,7 +279,7 @@ class WeiboDynamicPollMonitor(Monitor):
 
         ok = data.get("ok", 0)
         if ok != 1:
-            log.warning(
+            log.debug(
                 "[Weibo UID:%d] mobile API ok=%s, msg=%s",
                 self.uid, ok, data.get("msg", ""),
             )
@@ -287,7 +287,7 @@ class WeiboDynamicPollMonitor(Monitor):
 
         cards: list[dict] = data.get("data", {}).get("cards", [])
         if not cards:
-            log.warning(
+            log.debug(
                 "[Weibo UID:%d] mobile API returned 0 cards (data keys: %s)",
                 self.uid, list(data.get("data", {}).keys()),
             )
@@ -303,7 +303,7 @@ class WeiboDynamicPollMonitor(Monitor):
         ]
 
         if not filtered:
-            log.warning(
+            log.debug(
                 "[Weibo UID:%d] mobile cards=%d but all filtered out "
                 "(first card keys: %s)",
                 self.uid, len(cards),
@@ -378,7 +378,7 @@ class WeiboDynamicPollMonitor(Monitor):
             if posts is not None:
                 # Wrap each mblog dict in a card-like shape so _process_cards works
                 wrapped = [{"mblog": p, "card_type": 9} for p in posts]
-                log.info(
+                log.debug(
                     "[Weibo UID:%d] ajax fallback returned %d posts",
                     self.uid, len(wrapped),
                 )
@@ -410,7 +410,7 @@ class WeiboDynamicPollMonitor(Monitor):
                     # Handle empty result (e.g. user never posted, or API banned)
                     if not self._seen_ids:
                         self._seen_ids.append("-1")
-                        log.info(
+                        log.debug(
                             "[Weibo UID:%d] initialized with placeholder id",
                             self.uid,
                         )
@@ -447,7 +447,7 @@ class WeiboDynamicPollMonitor(Monitor):
         if not self._seen_ids:
             for index in range(min(CACHE_MAXLEN, len(cards))):
                 self._seen_ids.append(cards[index]["mblog"]["id"])
-            log.info(
+            log.debug(
                 "[Weibo %s(UID:%d)] dynamic initialized, %d ids cached",
                 screen_name,
                 self.uid,
@@ -472,7 +472,7 @@ class WeiboDynamicPollMonitor(Monitor):
         # NOTE: ajax fallback wraps everything as card_type 9
         card_type = card.get("card_type")
         if card_type not in (9,):
-            log.info(
+            log.debug(
                 "[Weibo %s(UID:%d)] new post card_type=%s skipped",
                 screen_name,
                 self.uid,
@@ -495,7 +495,7 @@ class WeiboDynamicPollMonitor(Monitor):
         yesterday = (datetime.now() + timedelta(days=-1)).strftime("%Y-%m-%d")
         yesterday_ts = time.mktime(time.strptime(yesterday, "%Y-%m-%d"))
         if created_at_ts < yesterday_ts:
-            log.info(
+            log.debug(
                 "[Weibo %s(UID:%d)] new post but too old (%s), skip push",
                 screen_name,
                 self.uid,
