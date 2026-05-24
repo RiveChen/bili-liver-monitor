@@ -14,6 +14,13 @@ import logging
 import signal
 import sys
 
+from importlib.metadata import version as _pkg_version
+
+try:
+    __version__ = _pkg_version("bili-liver-monitor")
+except Exception:
+    __version__ = "0.1.0"
+
 from .bot.listener import NapcatEventListener
 from .config import load_config
 from .monitor.bilibili_dynamic import BiliDynamicPollMonitor
@@ -367,13 +374,35 @@ class Application:
 
     async def _run_async(self) -> None:
         """Async main loop."""
-        # Startup notification
-        uid_list = self.config.monitor.bilibili.uid_list
-        if uid_list:
-            info = f"监控 UID: {', '.join(str(u) for u in uid_list)}"
-            await self._broadcast_notification("🟢 bili-liver-monitor 已启动", info)
-        else:
-            await self._broadcast_notification("🟢 bili-liver-monitor 已启动")
+        # Build startup notification
+        lines: list[str] = []
+        lines.append(f"🟢 bili-liver-monitor v{__version__} 已启动")
+
+        # ── Bilibili monitors ──────────────────────────────────
+        bili_cfg = self.config.monitor.bilibili
+        if bili_cfg.uid_list:
+            uid_str = ", ".join(str(u) for u in bili_cfg.uid_list)
+            if bili_cfg.notify_dynamic:
+                uid_str += " (动态监控已开启)"
+            lines.append(f"📺 B 站监控：{uid_str}")
+
+        # ── Weibo monitors ─────────────────────────────────────
+        weibo_cfg = self.config.monitor.weibo
+        if weibo_cfg.enable and weibo_cfg.uid_list:
+            lines.append(f"📱 微博监控：{', '.join(str(u) for u in weibo_cfg.uid_list)}")
+
+        # ── Push targets ───────────────────────────────────────
+        napcat_cfg = self.config.pusher.napcat
+        target_parts: list[str] = []
+        if napcat_cfg.user_id:
+            target_parts.append(f"私聊:{napcat_cfg.user_id}")
+        if napcat_cfg.group_ids:
+            target_parts.append(f"群聊:{napcat_cfg.group_ids}")
+        if target_parts:
+            lines.append(f"📨 {' | '.join(target_parts)}")
+
+        info = "\n".join(lines)
+        await self._broadcast_notification(info)
 
         # Start all monitors
         tasks = [asyncio.create_task(m.run()) for m in self._monitors]

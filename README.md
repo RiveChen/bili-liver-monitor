@@ -4,7 +4,7 @@ Bilibili 主播直播状态监控与推送工具。
 
 All codes are vibed.
 
-## 功能
+## Features
 
 - [x] 开播/下播提醒（HTTP 轮询）
 - [x] Bilibili 动态推送
