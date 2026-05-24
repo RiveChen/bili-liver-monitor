@@ -122,17 +122,37 @@ class NapCatQQPusher(Pusher):
         room_title: str = "",
         cover_url: str = "",
     ) -> bool:
-        """Push a live start notification to private + optional group."""
+        """Push a live start notification to private + optional group.
+
+        When ``cover_url`` is provided, the message is sent as a list of
+        OneBot message segments (text + image) so NapCatQQ renders the
+        cover picture inline. Otherwise a plain text string is used.
+        """
         live_url = f"https://live.bilibili.com/{room_id}"
         title_part = f" - {room_title}" if room_title else ""
+        text = f"🔴 {uname} 开播啦！{title_part}\n{live_url}"
 
-        msg = f"🔴 {uname} 开播啦！{title_part}\n{live_url}"
+        # -- Build message segments ---------------------------------
+        if cover_url:
+            msg: list[dict] | str = [
+                {"type": "text", "data": {"text": text}},
+                {"type": "text", "data": {"text": "\n\n"}},
+                {"type": "image", "data": {"file": cover_url}},
+            ]
+        else:
+            msg = text
 
+        # -- Send ---------------------------------------------------
         results = await self._send_private_all(msg)
         if self.group_ids:
-            group_msg = msg
-            if self.at_qq == "all":
-                group_msg = f"[CQ:at,qq=all]\n{msg}"
+            if isinstance(msg, list):
+                group_msg = list(msg)
+                if self.at_qq == "all":
+                    group_msg.append({"type": "at", "data": {"qq": "all"}})
+            else:
+                group_msg = text
+                if self.at_qq == "all":
+                    group_msg = f"[CQ:at,qq=all]\n{text}"
             results.extend(await self._send_group_all(group_msg))
 
         success = any(results) if results else False
